@@ -1,0 +1,385 @@
+openapi: 3.0.3
+info:
+  title: air_widget HTTP API
+  description: HTTP API веб-виджета для взаимодействия с AI-ассистентом.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080
+    description: Development
+
+tags:
+  - name: Widget
+    description: Работа веб-виджета и пользовательских диалогов
+  - name: Management
+    description: Управление экземпляром виджета пользователя
+  - name: Monitoring
+    description: Мониторинг сервиса
+
+paths:
+  /metrics:
+    get:
+      tags: [Monitoring]
+      summary: Получить Prometheus-метрики
+      operationId: getMetrics
+      responses:
+        '200':
+          description: Метрики Prometheus
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /v1/widget/available:
+    get:
+      tags: [Widget]
+      summary: Проверить доступность виджета
+      operationId: checkWidgetAvailability
+      responses:
+        '200':
+          description: Сервис доступен
+
+  /v1/widget/code:
+    post:
+      tags: [Widget]
+      summary: Получить код виджета
+      operationId: createWidgetCode
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WidgetCodeRequest'
+      responses:
+        '200':
+          description: Код виджета создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WidgetCodeResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /v1/widget/exam:
+    post:
+      tags: [Widget]
+      summary: Обменять код виджета на токен доступа
+      operationId: createWidgetToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExamRequest'
+      responses:
+        '200':
+          description: Токен доступа создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '402': { $ref: '#/components/responses/PaymentRequired' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /v1/widget/validate:
+    get:
+      tags: [Widget]
+      summary: Проверить токен виджета
+      operationId: validateWidgetToken
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Token'
+      responses:
+        '200': { description: Токен действителен }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /v1/widget/refresh:
+    post:
+      tags: [Widget]
+      summary: Обновить токен виджета
+      operationId: refreshWidgetToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: Новый токен создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '402': { $ref: '#/components/responses/PaymentRequired' }
+
+  /v1/widget/username:
+    get:
+      tags: [Widget]
+      summary: Получить имя ассистента или пользователя
+      operationId: getWidgetUsername
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Token'
+      responses:
+        '200':
+          description: Имя
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name: { type: string }
+                  message: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /v1/widget/dialog:
+    get:
+      tags: [Widget]
+      summary: Получить историю диалога
+      operationId: getWidgetDialog
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Token'
+        - name: name
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: История диалога
+          content:
+            application/json: {}
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/widget/data:
+    post:
+      tags: [Widget]
+      summary: Отправить сообщение ассистенту
+      operationId: sendWidgetMessage
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WidgetMessageRequest'
+      responses:
+        '200': { description: Сообщение принято }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/widget/events-ticket:
+    post:
+      tags: [Widget]
+      summary: Получить ticket для SSE-соединения
+      operationId: createEventsTicket
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Ticket создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '402': { $ref: '#/components/responses/PaymentRequired' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /v1/widget/events:
+    get:
+      tags: [Widget]
+      summary: Открыть поток событий ассистента
+      operationId: streamWidgetEvents
+      description: SSE-поток. Токен передаётся через Bearer Authorization, query-параметр token или ticket.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Token'
+        - $ref: '#/components/parameters/Ticket'
+      responses:
+        '200':
+          description: Поток Server-Sent Events
+          content:
+            text/event-stream:
+              schema: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /widget/enable:
+    get:
+      tags: [Management]
+      summary: Запустить виджет пользователя
+      operationId: enableWidget
+      parameters: [{ $ref: '#/components/parameters/UserId' }]
+      responses:
+        '200': { $ref: '#/components/responses/StatusOk' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /widget/disable:
+    get:
+      tags: [Management]
+      summary: Остановить виджет пользователя
+      operationId: disableWidget
+      parameters: [{ $ref: '#/components/parameters/UserId' }]
+      responses:
+        '200': { $ref: '#/components/responses/StatusOk' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /widget/restart:
+    get:
+      tags: [Management]
+      summary: Перезапустить виджет пользователя
+      operationId: restartWidget
+      parameters: [{ $ref: '#/components/parameters/UserId' }]
+      responses:
+        '200': { $ref: '#/components/responses/StatusOk' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    UserId:
+      name: uid
+      in: query
+      required: true
+      description: ID пользователя
+      schema: { type: integer, format: int32, minimum: 0 }
+    Token:
+      name: token
+      in: query
+      required: false
+      description: JWT-токен. Также может быть передан как Bearer-токен в заголовке Authorization.
+      schema: { type: string }
+    Ticket:
+      name: ticket
+      in: query
+      required: false
+      description: Одноразовый или обновлённый токен для SSE-соединения.
+      schema: { type: string }
+
+  schemas:
+    WidgetCodeRequest:
+      type: object
+      required: [allowedUrls]
+      properties:
+        allowedUrls:
+          type: array
+          minItems: 1
+          items: { type: string, format: uri }
+        expiresAt: { type: string, format: date-time }
+        neverExpires: { type: boolean, default: false }
+    WidgetCodeResponse:
+      type: object
+      required: [widgetCode]
+      properties:
+        widgetCode: { type: string }
+    ExamRequest:
+      type: object
+      required: [widgetCode, respId]
+      properties:
+        widgetCode: { type: string }
+        respId: { type: integer, format: int64, minimum: 0 }
+    RefreshTokenRequest:
+      type: object
+      required: [oldToken]
+      properties:
+        oldToken: { type: string }
+    WidgetMessageRequest:
+      type: object
+      required: [token, name, content]
+      properties:
+        token: { type: string }
+        name: { type: string }
+        content: { type: string }
+    TokenResponse:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string }
+    TicketResponse:
+      type: object
+      required: [ticket]
+      properties:
+        ticket: { type: string }
+    StatusResponse:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string }
+    ErrorResponse:
+      type: object
+      properties:
+        error: { type: string }
+
+  responses:
+    StatusOk:
+      description: Операция выполнена
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/StatusResponse' }
+    BadRequest:
+      description: Некорректный запрос
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Unauthorized:
+      description: Отсутствует или недействителен токен либо uid
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Forbidden:
+      description: Origin не разрешён для токена
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    NotFound:
+      description: Пользователь, виджет или диалог не найден
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    PaymentRequired:
+      description: Недостаточный баланс или отсутствует подписка
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    TooManyRequests:
+      description: Превышен лимит активных SSE-соединений
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    ServiceUnavailable:
+      description: Виджет не запущен или сервис временно недоступен
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    InternalError:
+      description: Внутренняя ошибка сервиса
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }

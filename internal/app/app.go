@@ -1,0 +1,228 @@
+package app
+
+import (
+	"air_widget/internal/db"
+	"air_widget/internal/domain"
+	"air_widget/internal/widget"
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/ikermy/air_common/pkg/com"
+	"github.com/ikermy/air_common/pkg/crm"
+	"github.com/ikermy/air_common/pkg/endpoint"
+	"github.com/ikermy/air_common/pkg/model"
+	"github.com/ikermy/air_common/pkg/model/google"
+	"github.com/ikermy/air_common/pkg/model/mistral"
+	"github.com/ikermy/air_common/pkg/model/openai"
+	"github.com/ikermy/air_common/pkg/operator"
+	"github.com/ikermy/air_common/pkg/rpc"
+	"github.com/ikermy/air_common/pkg/startpoint"
+	"github.com/ikermy/air_logger/v2/pkg/logger"
+	"github.com/redis/go-redis/v9"
+)
+
+type Mod interface {
+	CleanUp()
+	Shutdown(shutCh chan<- com.LogMsg)
+}
+
+type Start interface {
+	StarterListener(start model.StartCh, errCh chan<- error)
+	Shutdown(shutCh chan<- com.LogMsg)
+}
+
+type End interface {
+	Shutdown(shutCh chan<- com.LogMsg)
+}
+
+type CRM interface {
+	Shutdown(shutCh chan<- com.LogMsg)
+}
+
+type DB interface {
+	HandlerClose()
+}
+
+type Widget interface {
+	StartBots() error
+	StopBots()
+	WebHook()
+}
+
+type App struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+	Start  Start
+	Mod    Mod
+	End    End
+	Wid    Widget
+	CRM    CRM
+	DB     DB
+}
+
+func New(parent context.Context) *App {
+	// Локальный дочерний контекст для уровня app
+	ctx, cancel := context.WithCancel(parent)
+
+	d, err := db.New(ctx)
+	if err != nil {
+		logger.Fatal("Ошибка инициализации базы данных: %v", err)
+	}
+
+	rpcClient, err := rpc.New()
+	if err != nil {
+		logger.Fatal(fmt.Errorf("ошибка создания rpc клиента: %w", err))
+	}
+
+	m := model.NewModelRouter(ctx, d,
+		model.WithMasterKeyProvider(rpcClient), // первым!
+		openai.NewAsRouterOption(),
+		mistral.NewAsRouterOption(),
+		google.NewAsRouterOption(),
+	)
+
+	// Инжектируем resolver в comdb.DB
+	//    Каждый раз когда DB-методу нужен MasterKey — он делает gRPC-запрос к Landing
+	d.SetMasterKeyResolver(func(userId uint32) ([32]byte, bool) {
+		mk, err := rpcClient.GetUserMasterKey(context.Background(), userId)
+		if err != nil {
+			// codes.Unavailable — пользователь не логинился после рестарта Landing
+			// codes.Unauthenticated / PermissionDenied — неверный SERVICE_KEY
+			return [32]byte{}, false
+		}
+		return mk, true
+	})
+
+	var redisClient redis.UniversalClient
+	if domain.RedisAddr != "" {
+		redisClient = redis.NewClient(&redis.Options{
+			Addr:     domain.RedisAddr,
+			Password: domain.RedisPassword,
+			DB:       domain.RedisDB,
+		})
+
+		if err = redisClient.Ping(ctx).Err(); err != nil {
+			logger.Warn("Redis: недоступен, firstInteraction будет работать без восстановления после рестарта: %v", err)
+			_ = redisClient.Close()
+			redisClient = nil
+		} else {
+			logger.Info("Redis: клиент firstInteraction инициализирован")
+		}
+	}
+
+	e := endpoint.New(ctx, d)
+	c := crm.New(ctx, crm.WithAltContactChannel(crm.ChannelWidget)) // Инициализируем CRM с альтернативным каналом контакта Widget
+	w := widget.New(ctx, d, m, e, c, rpcClient, redisClient)
+	o := operator.New(ctx)
+	s := startpoint.New(ctx, m, e, w, o)
+
+	//w.SetDeltaProcessor(s) // Внедряем ProcessStreamDelta из startpoint.Start
+	w.SetOperator(o)
+	return &App{
+		ctx:    ctx,
+		cancel: cancel,
+		Start:  s,
+		Mod:    m,
+		End:    e,
+		Wid:    w,
+		DB:     d,
+		CRM:    c,
+	}
+}
+
+func (a *App) Run() {
+	// Создаю шину для логирования сообщений от модулей
+	bus := com.NewBus(10)
+
+	// Слушаем StartCh
+	go a.Starter()
+
+	// Запускаю очистку устаревших пользовательских моделей
+	go a.Mod.CleanUp()
+
+	// читатель
+	go uReader(bus.MsgCh)
+	// Запускаю обработчик закрытия БД
+	go a.DB.HandlerClose()
+
+	// Запускаю веб-сервер авторизации юзер ботов
+	go a.Wid.WebHook()
+
+	// Запускаю ботов Widget
+	logger.Info("Запускаю пользовательских ботов...")
+
+	go func() {
+		err := a.Wid.StartBots()
+		if err != nil {
+			logger.Fatal(err)
+		}
+	}()
+
+	// Обработка сигнала завершения
+	go func() {
+		<-a.ctx.Done()
+		// Аварийный таймаут на случай, если что-то пойдет не так с завершением
+		go func() {
+			ticker := time.NewTicker(5 * time.Second)
+			<-ticker.C
+			close(domain.UsersDB)
+		}()
+
+		logger.Info("App: получен сигнал завершения, начинаю shutdown")
+
+		// Останавливаем ботов Telegram чтобы не принимать новые запросы
+		a.Wid.StopBots()
+
+		bus.Add(func(ch chan<- com.LogMsg) { a.Start.Shutdown(ch) })
+		bus.Add(func(ch chan<- com.LogMsg) { a.CRM.Shutdown(ch) })
+		bus.Add(func(ch chan<- com.LogMsg) { a.Mod.Shutdown(ch) })
+		bus.Add(func(ch chan<- com.LogMsg) { a.End.Shutdown(ch) })
+
+		logger.Info("App: все модули завершены, отправляю сигнал завершения БД")
+		// ждём всех producers и закрываем канал
+		bus.WaitAndClose()
+		// Отправляем сигнал о завершении работы с БД
+		close(domain.UsersDB)
+	}()
+}
+
+func (a *App) Starter() {
+	errCh := make(chan error, 1)
+	defer close(errCh)
+	for {
+		select {
+		case start, open := <-widget.StartCh:
+			if !open {
+				logger.Error("StartCh closed")
+				return
+			}
+			// Запускаю слушателя с пользовательскими данными
+			go func() {
+				a.Start.StarterListener(start, errCh)
+
+				select {
+				case err := <-errCh:
+					if err != nil {
+						logger.Error("Канал для ошибок закрыт: %v", err)
+					}
+				}
+			}()
+		}
+	}
+}
+
+func uReader(readCh <-chan com.LogMsg) {
+	for info := range readCh {
+		switch info.Log {
+		case 0: // Info
+			logger.Info("%s: %v", info.Mod, info.Msg, info.UID)
+		case 1: // Info
+			logger.Error("%s: %v", info.Mod, info.Msg, info.UID)
+		case 2: // Info
+			logger.Warn("%s: %v", info.Mod, info.Msg, info.UID)
+		case 3: // Info
+			logger.Debug("%s: %v", info.Mod, info.Msg, info.UID)
+		}
+	}
+}
