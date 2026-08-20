@@ -5,6 +5,7 @@ import (
 	"air_widget/internal/repository"
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,11 +17,45 @@ import (
 	"github.com/ikermy/air_logger/v2/pkg/logger"
 )
 
+// // Обязательные методы ////
 // NullBytes промежуточный тип для загрузки массива байт из базы
 type NullBytes struct {
 	Bytes []byte
 	Valid bool // Valid = true, если Bytes не NULL
 }
+
+// Scan реализует интерфейс [sql.Scanner](database/sql/sql.go:447) для чтения BLOB/TEXT значений.
+func (nb *NullBytes) Scan(value any) error {
+	if value == nil {
+		nb.Bytes = nil
+		nb.Valid = false
+		return nil
+	}
+
+	switch v := value.(type) {
+	case []byte:
+		nb.Bytes = append(nb.Bytes[:0], v...)
+		nb.Valid = true
+		return nil
+	case string:
+		nb.Bytes = append(nb.Bytes[:0], v...)
+		nb.Valid = true
+		return nil
+	default:
+		return fmt.Errorf("cannot scan type %T into NullBytes", value)
+	}
+}
+
+// Value реализует интерфейс [driver.Valuer](database/sql/driver/types.go:35).
+func (nb NullBytes) Value() (driver.Value, error) {
+	if !nb.Valid {
+		return nil, nil
+	}
+
+	return nb.Bytes, nil
+}
+
+/////////////////////////////
 
 // Implementation реализация интерфейса Implementation для MySQL
 type Implementation struct {
