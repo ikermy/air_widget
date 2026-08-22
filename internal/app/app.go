@@ -34,6 +34,7 @@ type Start interface {
 
 type End interface {
 	Shutdown(shutCh chan<- com.LogMsg)
+	NotificationListener(notifCh chan<- com.LogMsg)
 }
 
 type CRM interface {
@@ -148,6 +149,9 @@ func (a *App) Run() {
 
 	// Запускаю веб-сервер авторизации юзер ботов
 	go a.Wid.WebHook()
+
+	// Запускаю слушателя уведомлений
+	bus.Add(func(ch chan<- com.LogMsg) { a.End.NotificationListener(ch) })
 
 	// Запускаю ботов Widget
 	logger.Info("Запускаю пользовательских ботов...")
