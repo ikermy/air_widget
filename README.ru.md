@@ -112,11 +112,11 @@ GET  /widget/restart
 [`Dockerfile`](Dockerfile) собирает статический Go-бинарник в отдельном build-этапе, сжимает его с помощью UPX и запускает в минимальном runtime-образе `scratch` с сертификатами CA и данными часовых поясов.
 
 ## Связанные сервисы
-- [air_common](https://github.com/ikermy/air_common) — Общая библиотека для AI‑микросервисов
+- [air-common](https://github.com/ikermy/air-common) — Общая библиотека для AI‑микросервисов
 - [air_orchestrator](https://github.com/ikermy/air_orchestrator) — Главный сервис оркестратор
 - [air_operator](https://github.com/ikermy/air_operator) — Сервис переадресации ответов на операторов от пользователей, поддерживает все типы ботов
 - [marusia_crm](https://github.com/ikermy/marusia_crm) — Сервис интеграции с внешними CRM системами
-- [air_logger](https://github.com/ikermy/air_logger) — Вспомогательный сервис логирования событий с поддержкой многопользовательского режима и поддержкой сборщика логов loki
+- [air-logger](https://github.com/ikermy/air-logger) — Вспомогательный сервис логирования событий с поддержкой многопользовательского режима и поддержкой сборщика логов loki
 
 ## Лицензия
 

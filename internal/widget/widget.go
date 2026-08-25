@@ -16,15 +16,15 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/ikermy/air_common/pkg/com"
-	"github.com/ikermy/air_common/pkg/comdb"
-	"github.com/ikermy/air_common/pkg/crm"
-	"github.com/ikermy/air_common/pkg/crypto"
-	"github.com/ikermy/air_common/pkg/endpoint"
-	"github.com/ikermy/air_common/pkg/model"
-	"github.com/ikermy/air_common/pkg/operator"
-	"github.com/ikermy/air_common/pkg/rpc"
-	"github.com/ikermy/air_logger/v2/pkg/logger"
+	"github.com/ikermy/air-common/pkg/com"
+	"github.com/ikermy/air-common/pkg/comdom"
+	"github.com/ikermy/air-common/pkg/crm"
+	"github.com/ikermy/air-common/pkg/crypto"
+	"github.com/ikermy/air-common/pkg/endpoint"
+	"github.com/ikermy/air-common/pkg/model"
+	"github.com/ikermy/air-common/pkg/operator"
+	"github.com/ikermy/air-common/pkg/rpc"
+	"github.com/ikermy/air-logger/v2/pkg/logger"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -565,7 +565,7 @@ func (u *User) connectionLimitMiddleware() gin.HandlerFunc {
 // initializeUserChannels создаёт каналы связи для пользователя
 func (b *Bot) initializeUserChannels(senderID uint64, senderName string) (uint64, error) {
 	startedAt := time.Now()
-	dialogId, err := b.db.GetOrSetTreadAndResponder(b.userID, senderID, senderName, comdb.Widget)
+	dialogId, err := b.db.GetOrSetTreadAndResponder(b.userID, senderID, senderName, comdom.Widget)
 	if err != nil {
 		metrics.ObserveUserChannelInit(b.userID, "error", startedAt)
 		return 0, fmt.Errorf("ошибка ID диалога: %w", err)

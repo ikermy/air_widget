@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	rpcclient "github.com/ikermy/air_common/pkg/rpc"
+	rpcclient "github.com/ikermy/air-common/pkg/rpc"
 )
 
 func TestIntegration_WidgetTokenRPC(t *testing.T) {

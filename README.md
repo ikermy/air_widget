@@ -113,11 +113,11 @@ The full API contract is available in [`doc/openapi.yaml`](doc/openapi.yaml).
 
 ## Related Services
 
-- [air_common](https://github.com/ikermy/air_common) — common library for AI microservices;
+- [air-common](https://github.com/ikermy/air-common) — common library for AI microservices;
 - [air_orchestrator](https://github.com/ikermy/air_orchestrator) — main orchestration service;
 - [air_operator](https://github.com/ikermy/air_operator) — service that forwards responses from users to operators and supports all bot types;
 - [marusia_crm](https://github.com/ikermy/marusia_crm) — service for integration with external CRM systems;
-- [air_logger](https://github.com/ikermy/air_logger) — event logging service with multi-user support and Loki collector support.
+- [air-logger](https://github.com/ikermy/air-logger) — event logging service with multi-user support and Loki collector support.
 
 ## License
 

@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ikermy/air_common/pkg/com"
-	"github.com/ikermy/air_common/pkg/rpc/proto"
+	"github.com/ikermy/air-common/pkg/com"
+	"github.com/ikermy/air-common/pkg/rpc/proto"
 )
 
 type Req struct {

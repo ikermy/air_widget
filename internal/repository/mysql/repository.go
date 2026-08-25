@@ -10,11 +10,11 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ikermy/air_common/pkg/comdb"
-	"github.com/ikermy/air_common/pkg/mode"
-	"github.com/ikermy/air_common/pkg/model/commdom"
-	"github.com/ikermy/air_common/pkg/model/create"
-	"github.com/ikermy/air_logger/v2/pkg/logger"
+	"github.com/ikermy/air-common/pkg/comdb"
+	"github.com/ikermy/air-common/pkg/comdom"
+	"github.com/ikermy/air-common/pkg/mode"
+	"github.com/ikermy/air-common/pkg/model/create"
+	"github.com/ikermy/air-logger/v2/pkg/logger"
 )
 
 // // Обязательные методы ////
@@ -252,9 +252,9 @@ func fillWidgetBotData(user *domain.WidgetBotData, widget, name, assistantID sql
 		user.AssistName = name.String
 	}
 	if provider.Valid {
-		user.Provider = commdom.ProviderType(provider.Byte)
+		user.Provider = comdom.ProviderType(provider.Byte)
 	} else if defaultProvider {
-		user.Provider = commdom.ProviderOpenAI
+		user.Provider = comdom.ProviderOpenAI
 	}
 	if data.Valid {
 		if mdata, err := create.DecompressModelData(data.Bytes); err == nil {

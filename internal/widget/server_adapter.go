@@ -5,7 +5,7 @@ import (
 	"air_widget/internal/metrics"
 
 	"github.com/gin-gonic/gin"
-	"github.com/ikermy/air_logger/v2/pkg/logger"
+	"github.com/ikermy/air-logger/v2/pkg/logger"
 )
 
 type webHandlers struct{ u *User }

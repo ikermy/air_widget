@@ -1,7 +1,7 @@
 package domain
 
 import (
-	"github.com/ikermy/air_common/pkg/mode"
+	"github.com/ikermy/air-common/pkg/mode"
 )
 
 var (

@@ -4,8 +4,8 @@ import (
 	"air_widget/internal/metrics"
 	"fmt"
 
-	"github.com/ikermy/air_common/pkg/model"
-	"github.com/ikermy/air_logger/v2/pkg/logger"
+	"github.com/ikermy/air-common/pkg/model"
+	"github.com/ikermy/air-logger/v2/pkg/logger"
 )
 
 // IsOperatorMode возвращает текущий флаг оператора для диалога
