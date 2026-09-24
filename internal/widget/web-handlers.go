@@ -19,6 +19,11 @@ import (
 	"github.com/ikermy/air-logger/v2/pkg/logger"
 )
 
+// LongPollingTimeout Настройка timeout для long-polling
+const (
+	LongPollingTimeout = 10 * time.Minute
+)
+
 // widgetToken извлекает токен из Authorization: Bearer <token>.
 // Query-параметр оставлен для обратной совместимости.
 func widgetToken(c *gin.Context) string {
@@ -55,7 +60,7 @@ func originAllowed(origin string, allowed []string) bool {
 	if origin == "" {
 		return false
 	}
-	normalized, err := domain.NormalizeOrigin(origin)
+	normalized, err := NormalizeOrigin(origin)
 	if err != nil {
 		return false
 	}
@@ -77,7 +82,7 @@ func tokenOriginAllowed(c *gin.Context, token *exam.Token) bool {
 		c.GetHeader("Referer"),
 	)
 
-	normalizedOrigin, err := domain.NormalizeOrigin(requestOrigin)
+	normalizedOrigin, err := NormalizeOrigin(requestOrigin)
 	return err == nil && normalizedOrigin == token.Origin
 }
 
@@ -140,7 +145,7 @@ func (u *User) handleWidgetCode(c *gin.Context) {
 		NeverExpires: requestData.NeverExpires,
 	}
 	logger.Debug("handleWidgetCode: получен запрос на генерацию widget code с параметрами: %+v", config, userID)
-	if _, err := domain.ParseWidgetConfigForGeneration(config, time.Now()); err != nil {
+	if _, err := ParseWidgetConfigForGeneration(config, time.Now()); err != nil {
 		metrics.WidgetCodeRequests.WithLabelValues("invalid_config").Inc()
 		logger.Error("ошибка при проверке параметров widget code: %v", err, userID)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -178,7 +183,7 @@ func (u *User) handleExam(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid widget code"})
 		return
 	}
-	requestOrigin, originErr := domain.NormalizeOrigin(c.GetHeader("Origin"))
+	requestOrigin, originErr := NormalizeOrigin(c.GetHeader("Origin"))
 	if originErr != nil || !originAllowed(requestOrigin, claims.AllowedUrls) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "origin not allowed"})
 		return
@@ -609,7 +614,7 @@ func (u *User) handleEvents(c *gin.Context) {
 	defer pingTicker.Stop()
 
 	// Timeout ticker для принудительного закрытия соединения
-	timeoutTicker := time.NewTicker(domain.LongPollingTimeout)
+	timeoutTicker := time.NewTicker(LongPollingTimeout)
 	defer timeoutTicker.Stop()
 
 	defer func() {
@@ -642,7 +647,7 @@ func (u *User) handleEvents(c *gin.Context) {
 				}
 
 				select {
-				case domain.EndDialog <- usrCh.DialogID:
+				case u.endDialogCh <- usrCh.DialogID:
 				default:
 					logger.Warn("Ошибка при отправке данных в EndDialog")
 				}
@@ -735,7 +740,7 @@ func (u *User) handleEvents(c *gin.Context) {
 
 		case <-timeoutTicker.C:
 			// Принудительное закрытие соединения по timeout
-			logger.Error("Long-polling timeout (%v) для слушателя %d", domain.LongPollingTimeout, token.ReapId)
+			logger.Error("Long-polling timeout (%v) для слушателя %d", LongPollingTimeout, token.ReapId)
 			if _, err := fmt.Fprintf(c.Writer, "event: timeout\ndata: {\"type\":\"timeout\",\"message\":\"Connection timeout\"}\n\n"); err == nil {
 				if flusher, ok := c.Writer.(http.Flusher); ok {
 					flusher.Flush()

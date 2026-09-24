@@ -1,6 +1,7 @@
-package domain
+package widget
 
 import (
+	"air_widget/internal/domain"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -8,18 +9,9 @@ import (
 	"time"
 )
 
-// WidgetConfig is the internal representation of the JSON stored in
-// WidgetBotData.Data. It is intentionally not added to WidgetBotData: Data
-// remains the single storage field for widget configuration.
-type WidgetConfig struct {
-	AllowedUrls  []string   `json:"allowedUrls"`
-	ExpiresAt    *time.Time `json:"expiresAt,omitempty"`
-	NeverExpires bool       `json:"neverExpires"`
-}
-
 // ParseWidgetConfig parses and validates widget configuration stored in Data.
-func ParseWidgetConfig(tokenJSON string, now time.Time) (WidgetConfig, error) {
-	var config WidgetConfig
+func ParseWidgetConfig(tokenJSON string, now time.Time) (domain.WidgetConfig, error) {
+	var config domain.WidgetConfig
 	if strings.TrimSpace(tokenJSON) == "" {
 		return config, fmt.Errorf("empty widget data")
 	}
@@ -29,7 +21,7 @@ func ParseWidgetConfig(tokenJSON string, now time.Time) (WidgetConfig, error) {
 	return ParseWidgetConfigForGeneration(config, now)
 }
 
-func ParseWidgetConfigForGeneration(config WidgetConfig, now time.Time) (WidgetConfig, error) {
+func ParseWidgetConfigForGeneration(config domain.WidgetConfig, now time.Time) (domain.WidgetConfig, error) {
 	if len(config.AllowedUrls) == 0 {
 		return config, fmt.Errorf("AllowedUrls is required")
 	}
@@ -70,17 +62,4 @@ func NormalizeOrigin(raw string) (string, error) {
 		return "", fmt.Errorf("wildcard origin is not allowed")
 	}
 	return strings.ToLower(u.Scheme + "://" + u.Host), nil
-}
-
-func (c WidgetConfig) AllowsOrigin(origin string) bool {
-	normalized, err := NormalizeOrigin(origin)
-	if err != nil {
-		return false
-	}
-	for _, allowed := range c.AllowedUrls {
-		if normalized == allowed {
-			return true
-		}
-	}
-	return false
 }

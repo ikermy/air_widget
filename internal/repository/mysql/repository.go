@@ -55,8 +55,6 @@ func (nb NullBytes) Value() (driver.Value, error) {
 	return nb.Bytes, nil
 }
 
-/////////////////////////////
-
 // Implementation реализация интерфейса Implementation для MySQL
 type Implementation struct {
 	db *comdb.DB
@@ -277,6 +275,7 @@ func fillWidgetBotData(user *domain.WidgetBotData, widget, name, assistantID sql
 }
 
 func (i *Implementation) ReadResponderName(respId uint64) (json.RawMessage, error) {
+	// TODO добавить это в редиску
 	// Ищем имя пользователя и realRespId в кэше
 	//if value, found := d.userName.Load(respId); found {
 	//	return value.(json.RawMessage), nil
