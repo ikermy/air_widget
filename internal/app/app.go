@@ -28,7 +28,7 @@ type Mod interface {
 }
 
 type Start interface {
-	StarterListener(start model.StartCh, errCh chan<- error)
+	StartSession(start *model.StartCh) <-chan error
 	Shutdown(shutCh chan<- com.LogMsg)
 }
 
@@ -43,6 +43,8 @@ type CRM interface {
 
 type DB interface {
 	HandlerClose()
+	CloseDoneCh()
+	GetExitCh() <-chan struct{}
 }
 
 type Widget interface {
@@ -62,7 +64,7 @@ type App struct {
 	DB     DB
 }
 
-func New(parent context.Context) *App {
+func New(parent context.Context, redisCfg domain.Redis) *App {
 	// Локальный дочерний контекст для уровня app
 	ctx, cancel := context.WithCancel(parent)
 
@@ -96,14 +98,14 @@ func New(parent context.Context) *App {
 	})
 
 	var redisClient redis.UniversalClient
-	if domain.RedisAddr != "" {
+	if redisCfg.RedisAddr != "" {
 		redisClient = redis.NewClient(&redis.Options{
-			Addr:     domain.RedisAddr,
-			Password: domain.RedisPassword,
-			DB:       domain.RedisDB,
+			Addr:     redisCfg.RedisAddr,
+			Password: redisCfg.RedisPassword,
+			DB:       redisCfg.RedisDB,
 		})
 
-		if err = redisClient.Ping(ctx).Err(); err != nil {
+		if err := redisClient.Ping(ctx).Err(); err != nil {
 			logger.Warn("Redis: недоступен, firstInteraction будет работать без восстановления после рестарта: %v", err)
 			_ = redisClient.Close()
 			redisClient = nil
@@ -170,7 +172,7 @@ func (a *App) Run() {
 		go func() {
 			ticker := time.NewTicker(5 * time.Second)
 			<-ticker.C
-			close(domain.UsersDB)
+			a.DB.CloseDoneCh() // Закрываем канал DoneCh принудительно, больше никто не работает с БД
 		}()
 
 		logger.Info("App: получен сигнал завершения, начинаю shutdown")
@@ -187,13 +189,11 @@ func (a *App) Run() {
 		// ждём всех producers и закрываем канал
 		bus.WaitAndClose()
 		// Отправляем сигнал о завершении работы с БД
-		close(domain.UsersDB)
+		a.DB.CloseDoneCh()
 	}()
 }
 
 func (a *App) Starter() {
-	errCh := make(chan error, 1)
-	defer close(errCh)
 	for {
 		select {
 		case start, open := <-widget.StartCh:
@@ -201,19 +201,21 @@ func (a *App) Starter() {
 				logger.Error("StartCh closed")
 				return
 			}
-			// Запускаю слушателя с пользовательскими данными
-			go func() {
-				a.Start.StarterListener(start, errCh)
-
-				select {
-				case err := <-errCh:
+			go func(startData model.StartCh) {
+				// ВАЖНО: указатель на копию — StartSession заполняет startData.Realtime
+				errCh := a.Start.StartSession(&startData)
+				for err := range errCh {
 					if err != nil {
-						logger.Error("Канал для ошибок закрыт: %v", err)
+						logger.Error("session error: %v", err)
 					}
 				}
-			}()
+			}(start)
 		}
 	}
+}
+
+func (a *App) ExitCh() <-chan struct{} {
+	return a.DB.GetExitCh()
 }
 
 func uReader(readCh <-chan com.LogMsg) {

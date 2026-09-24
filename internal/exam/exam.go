@@ -2,7 +2,6 @@ package exam
 
 import (
 	"air_widget/internal/db"
-	"air_widget/internal/domain"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -13,6 +12,9 @@ import (
 	"github.com/ikermy/air-common/pkg/com"
 	"github.com/ikermy/air-common/pkg/rpc/proto"
 )
+
+// AuthTokenTTL время жизни токена авторизации сессии виджета (с момента первого открытия кнопкой)
+const AuthTokenTTL = 60
 
 type Req struct {
 	UserId uint32
@@ -67,7 +69,7 @@ func New(parent context.Context, d *db.DB, b ORCClient) (*Exam, error) {
 }
 
 func (e *Exam) GenerateToken(userID uint32, responderId uint64, origin, jti string) (string, error) {
-	signedToken, err := e.helperNewToken(userID, responderId, domain.AuthTokenTTL*time.Minute, origin, jti)
+	signedToken, err := e.helperNewToken(userID, responderId, AuthTokenTTL*time.Minute, origin, jti)
 	if err != nil {
 		return "", fmt.Errorf("ошибка подписи токена: %v", err)
 	}
@@ -91,7 +93,7 @@ func (e *Exam) ParseExpiredToken(tokenString string) (*Token, error) {
 
 func (e *Exam) UpdateToken(t *Token) (string, error) {
 	// Получаем токен с подписью от orc
-	signedToken, err := e.helperNewToken(t.UserId, t.ReapId, domain.AuthTokenTTL*time.Minute, t.Origin, t.JTI)
+	signedToken, err := e.helperNewToken(t.UserId, t.ReapId, AuthTokenTTL*time.Minute, t.Origin, t.JTI)
 	if err != nil {
 		return "", err
 	}

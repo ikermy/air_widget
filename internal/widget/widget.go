@@ -21,6 +21,7 @@ import (
 	"github.com/ikermy/air-common/pkg/crm"
 	"github.com/ikermy/air-common/pkg/crypto"
 	"github.com/ikermy/air-common/pkg/endpoint"
+	"github.com/ikermy/air-common/pkg/mode"
 	"github.com/ikermy/air-common/pkg/model"
 	"github.com/ikermy/air-common/pkg/operator"
 	"github.com/ikermy/air-common/pkg/rpc"
@@ -87,15 +88,16 @@ type Bot struct {
 
 // User представляет все пользовательские Bot боты
 type User struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	web    *Web
-	end    Endpoint
-	crm    CRM
-	db     *db.DB
-	rpc    ORCClient
-	mod    Model
-	bot    sync.Map // key: userID uint32
+	ctx         context.Context
+	cancel      context.CancelFunc
+	web         *Web
+	end         Endpoint
+	crm         CRM
+	db          *db.DB
+	rpc         ORCClient
+	mod         Model
+	endDialogCh chan uint64 // Канал для передачи Id диалога при отключении клиента - для непосредственного сохранения в БД
+	bot         sync.Map    // key: userID uint32
 	// Режим оператора по диалогам
 	operatorModeByDialog sync.Map // key: dialogId (uint64), value: bool
 	op                   Operator
@@ -112,20 +114,24 @@ func New(parent context.Context, d *db.DB, m Model, e Endpoint, c CRM, rpc *rpc.
 	if err != nil {
 		logger.Fatal(err)
 	}
+
+	endDialogCh := make(chan uint64, 1)
+	mode.SetEndDialogChannel(endDialogCh)
 	return &User{
 		web: &Web{
 			exam: x,
 			Gin:  g,
 		},
-		ctx:        ctx,
-		cancel:     cancel,
-		end:        e,
-		db:         d,
-		mod:        m,
-		crm:        c,
-		rpc:        rpc,
-		bot:        sync.Map{}, // key: userID uint32
-		firstCache: newRedisFirstInteractionCache(redisClient),
+		ctx:         ctx,
+		cancel:      cancel,
+		end:         e,
+		db:          d,
+		mod:         m,
+		crm:         c,
+		rpc:         rpc,
+		endDialogCh: endDialogCh,
+		bot:         sync.Map{}, // key: userID uint32
+		firstCache:  newRedisFirstInteractionCache(redisClient),
 	}
 }
 
@@ -133,7 +139,7 @@ func (u *User) SetOperator(op Operator) { u.op = op }
 
 func (u *User) maxConnect(token string) (uint8, error) {
 	maxConnect := uint8(0) // Максимальное число коннектов к боту в зависимости от разрешённых урлов х2
-	if botData, err := domain.ParseWidgetConfig(token, time.Now()); err != nil {
+	if botData, err := ParseWidgetConfig(token, time.Now()); err != nil {
 		return maxConnect, fmt.Errorf("ошибка парсинга конфигурации Widget")
 	} else {
 		maxConnect = uint8(len(botData.AllowedUrls) * 2)
@@ -294,7 +300,7 @@ func (u *User) createBot(userID uint32) error {
 		return err
 	}
 
-	if _, err = domain.ParseWidgetConfig(token, time.Now()); err != nil {
+	if _, err = ParseWidgetConfig(token, time.Now()); err != nil {
 		return fmt.Errorf("некорректная конфигурация Widget: %w", err)
 	}
 
@@ -596,11 +602,12 @@ func (b *Bot) initializeUserChannels(senderID uint64, senderName string) (uint64
 
 	// Отправляем данные в канал запуска
 	startCh := model.StartCh{
-		Ctx:     b.ctx,
-		Model:   usrMod,
-		Chanel:  usrCh,
-		TreadId: dialogId,
-		RespId:  senderID,
+		Ctx:      b.ctx,
+		ChName:   comdom.Widget,
+		Model:    usrMod,
+		Channel:  usrCh,
+		ThreadId: dialogId,
+		RespId:   senderID,
 	}
 
 	select {
