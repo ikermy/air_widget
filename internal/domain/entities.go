@@ -3,7 +3,7 @@ package domain
 import (
 	"time"
 
-	"github.com/ikermy/air-common/pkg/comdom"
+	"github.com/ikermy/air-common/v2/pkg/comdom"
 )
 
 // WidgetBotData представляет данные пользователя с WaUserBot
@@ -14,7 +14,7 @@ type WidgetBotData struct {
 	AssistName       string              // Имя ассистента
 	AssistantId      string              // Идентификатор ассистента
 	MetaAction       string              // Поле MetaAction из модели ассистента
-	UserId           uint32              // Идентификатор пользователя
+	UserId uint64              // Идентификатор пользователя
 	AskLimit         uint32              // Лимит запросов
 	Events           Notifications       // При каких событиях присылать уведомления
 	Espero           uint8               // Значение Espero

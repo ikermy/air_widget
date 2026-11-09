@@ -16,24 +16,24 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/ikermy/air-common/pkg/com"
-	"github.com/ikermy/air-common/pkg/comdom"
-	"github.com/ikermy/air-common/pkg/crm"
-	"github.com/ikermy/air-common/pkg/crypto"
-	"github.com/ikermy/air-common/pkg/endpoint"
-	"github.com/ikermy/air-common/pkg/mode"
-	"github.com/ikermy/air-common/pkg/model"
-	"github.com/ikermy/air-common/pkg/operator"
-	"github.com/ikermy/air-common/pkg/rpc"
+	"github.com/ikermy/air-common/v2/pkg/com"
+	"github.com/ikermy/air-common/v2/pkg/comdom"
+	"github.com/ikermy/air-common/v2/pkg/crm"
+	"github.com/ikermy/air-common/v2/pkg/crypto"
+	"github.com/ikermy/air-common/v2/pkg/endpoint"
+	"github.com/ikermy/air-common/v2/pkg/mode"
+	"github.com/ikermy/air-common/v2/pkg/model"
+	"github.com/ikermy/air-common/v2/pkg/operator"
+	"github.com/ikermy/air-common/v2/pkg/rpc"
 	"github.com/ikermy/air-logger/v2/pkg/logger"
 	"github.com/redis/go-redis/v9"
 )
 
 type Inter interface {
-	//GetBotUsername(userID uint32) string
-	//StopUserBot(userID uint32) error
-	//RestartUserBot(userID uint32) error
-	//StartUserBot(userID uint32) error
+	//GetBotUsername(userID uint64) string
+	//StopUserBot(userID uint64) error
+	//RestartUserBot(userID uint64) error
+	//StartUserBot(userID uint64) error
 }
 
 type Model = model.Inter
@@ -46,14 +46,14 @@ type Exam interface {
 	ParseToken(tokenString string) (*exam.Token, error)
 	UpdateToken(t *exam.Token) (string, error)
 	ParseExpiredToken(tokenString string) (*exam.Token, error)
-	CheckUserSubscription(userId uint32) error
-	WidgetNewCode(userID uint32, examKey string, expiresAt int64, neverExpires bool, allowedUrls []string, jti string) (string, error)
+	CheckUserSubscription(userId uint64) error
+	WidgetNewCode(userID uint64, examKey string, expiresAt int64, neverExpires bool, allowedUrls []string, jti string) (string, error)
 	WidgetParseCode(tokenString string) (*exam.WidgetCodeData, error)
 }
 
 // ORCClient интерфейс для получения MasterKey пользователя через Landing gRPC
 type ORCClient interface {
-	GetUserMasterKey(ctx context.Context, userId uint32) ([32]byte, error)
+	GetUserMasterKey(ctx context.Context, userId uint64) ([32]byte, error)
 }
 
 var StartCh = make(chan model.StartCh, 1) // Канал для запуска горутины слушателя
@@ -64,7 +64,7 @@ type Web struct {
 }
 
 type Bot struct {
-	userID uint32
+	userID uint64
 	ctx    context.Context
 	cancel context.CancelFunc
 	// Модель ассистента
@@ -97,7 +97,7 @@ type User struct {
 	rpc         ORCClient
 	mod         Model
 	endDialogCh chan uint64 // Канал для передачи Id диалога при отключении клиента - для непосредственного сохранения в БД
-	bot         sync.Map    // key: userID uint32
+	bot         sync.Map    // key: userID uint64
 	// Режим оператора по диалогам
 	operatorModeByDialog sync.Map // key: dialogId (uint64), value: bool
 	op                   Operator
@@ -130,7 +130,7 @@ func New(parent context.Context, d *db.DB, m Model, e Endpoint, c CRM, rpc *rpc.
 		crm:         c,
 		rpc:         rpc,
 		endDialogCh: endDialogCh,
-		bot:         sync.Map{}, // key: userID uint32
+		bot:         sync.Map{}, // key: userID uint64
 		firstCache:  newRedisFirstInteractionCache(redisClient),
 	}
 }
@@ -180,7 +180,7 @@ func (u *User) StartBots() error {
 	return nil
 }
 
-func (u *User) decryptData(userID uint32, encryptData string) (string, error) {
+func (u *User) decryptData(userID uint64, encryptData string) (string, error) {
 	// Если поле зашифровано MasterKey — расшифровываем
 	if crypto.IsEncryptedWithMasterKey(encryptData) {
 		if u.rpc == nil {
@@ -225,9 +225,9 @@ func (u *User) StopBots() {
 
 	go func() {
 		u.bot.Range(func(key, value interface{}) bool {
-			userId := key.(uint32)
+			userId := key.(uint64)
 			wg.Add(1)
-			go func(id uint32) {
+			go func(id uint64) {
 				defer wg.Done()
 				u.StopUserBot(id)
 			}(userId)
@@ -253,7 +253,7 @@ func (u *User) StopBots() {
 }
 
 // StopBot останавливает бота для конкретного пользователя
-func (u *User) StopBot(userID uint32) error {
+func (u *User) StopBot(userID uint64) error {
 	logger.Info("Остановка бота", userID)
 
 	// Проверяем, существует ли бот
@@ -271,7 +271,7 @@ func (u *User) StopBot(userID uint32) error {
 }
 
 // StartBot запускает бота для конкретного пользователя
-func (u *User) StartBot(userID uint32) error {
+func (u *User) StartBot(userID uint64) error {
 	logger.Info("Запуск бота", userID)
 
 	err := u.createBot(userID)
@@ -283,7 +283,7 @@ func (u *User) StartBot(userID uint32) error {
 	return nil
 }
 
-func (u *User) createBot(userID uint32) error {
+func (u *User) createBot(userID uint64) error {
 	// Получаем данные пользователя из БД
 	userData, err := u.db.GetWidgetBotUser(userID)
 	if err != nil {
@@ -349,7 +349,7 @@ func (u *User) createBot(userID uint32) error {
 }
 
 // RestartBot перезапускает бота для конкретного пользователя (перезагружает данные из БД и пересоздает бота)
-func (u *User) RestartBot(userID uint32) error {
+func (u *User) RestartBot(userID uint64) error {
 	logger.Info("Перезапуск бота", userID)
 
 	err := u.createBot(userID)
@@ -362,7 +362,7 @@ func (u *User) RestartBot(userID uint32) error {
 }
 
 // StopUserBot останавливает бота для конкретного пользователя и удаляет его из карты
-func (u *User) StopUserBot(userId uint32) {
+func (u *User) StopUserBot(userId uint64) {
 	// Атомарно получаем и удаляем бота из карты
 	// Это гарантирует, что только один поток сможет остановить бота
 	value, exists := u.bot.LoadAndDelete(userId)
@@ -473,7 +473,7 @@ func (u *User) createAssistantModel(user domain.WidgetBotData) model.Assistant {
 }
 
 // Создает нового бота или обновляет существующего
-func (u *User) createOrUpdateBot(userID uint32, maxConnect uint8, assist model.Assistant) (*Bot, error) {
+func (u *User) createOrUpdateBot(userID uint64, maxConnect uint8, assist model.Assistant) (*Bot, error) {
 	// Проверяем, существует ли уже такой бот
 	value, exists := u.bot.Load(userID)
 
@@ -489,7 +489,7 @@ func (u *User) createOrUpdateBot(userID uint32, maxConnect uint8, assist model.A
 }
 
 // Инициализирует нового бота с заданными параметрами
-func (u *User) initializeBot(userID uint32, maxConnect uint8, assist model.Assistant) (*Bot, error) {
+func (u *User) initializeBot(userID uint64, maxConnect uint8, assist model.Assistant) (*Bot, error) {
 	// Создаем контекст с возможностью отмены
 	ctx, cancel := context.WithCancel(u.ctx)
 

@@ -38,7 +38,7 @@ func widgetToken(c *gin.Context) string {
 	return strings.TrimSpace(c.Query("ticket"))
 }
 
-func (u *User) generateWidgetCode(userID uint32, config domain.WidgetConfig) (string, error) {
+func (u *User) generateWidgetCode(userID uint64, config domain.WidgetConfig) (string, error) {
 	examKeyBytes := make([]byte, 32)
 	if _, err := rand.Read(examKeyBytes); err != nil {
 		return "", fmt.Errorf("generate exam key: %w", err)
@@ -86,7 +86,7 @@ func tokenOriginAllowed(c *gin.Context, token *exam.Token) bool {
 	return err == nil && normalizedOrigin == token.Origin
 }
 
-func (u *User) botIsRunning(userID uint32) bool {
+func (u *User) botIsRunning(userID uint64) bool {
 	_, exists := u.bot.Load(userID)
 	return exists
 }
@@ -121,7 +121,7 @@ func (u *User) handleWidgetCode(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "uid context is missing"})
 		return
 	}
-	userID, ok := uid.(uint32)
+	userID, ok := uid.(uint64)
 	if !ok {
 		logger.Error("handleWidgetCode: uid имеет неожиданный тип %T", uid)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid uid context"})
@@ -324,7 +324,7 @@ func (u *User) handleGetUsername(c *gin.Context) {
 		return
 	}
 
-	respData, err := u.db.ReadResponderName(token.ReapId)
+	respData, err := u.db.ReadResponderName(token.UserId, token.RespId)
 	if err != nil {
 		logger.Error("ошибка при получении respData: %v", err, token.UserId)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -384,7 +384,7 @@ func (u *User) handleReadDialog(c *gin.Context) {
 	bot := value.(*Bot)
 
 	// Инициализируем каналы пользователя
-	dialogId, err := bot.initializeUserChannels(token.ReapId, userName)
+	dialogId, err := bot.initializeUserChannels(token.RespId, userName)
 	if err != nil {
 		logger.Error("ошибка при инициализации каналов пользователя: %v", err, token.UserId)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -493,7 +493,7 @@ func (u *User) handleData(c *gin.Context) {
 	bot := value.(*Bot)
 	logger.Debug("Name %s", requestData.Name)
 	// Используем централизованную функцию handleMessage
-	err = bot.handleMessage(token.ReapId, requestData.Name, requestData.Content)
+	err = bot.handleMessage(token.RespId, requestData.Name, requestData.Content)
 	if err != nil {
 		logger.Error("Ошибка обработки сообщения: %v", err, token.UserId)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -584,11 +584,11 @@ func (u *User) handleEvents(c *gin.Context) {
 
 	logger.Debug("Новое соединение к боту (%d/%d)", currentConnections, bot.maxConnections, token.UserId)
 
-	usrCh, err := u.mod.GetCh(token.ReapId)
+	usrCh, err := u.mod.GetCh(token.RespId)
 	if err != nil {
-		logger.Warn("канал не найден для respId %d, повторная инициализация: %v", token.ReapId, err)
+		logger.Warn("канал не найден для respId %d, повторная инициализация: %v", token.RespId, err)
 		metrics.ObserveReconnect(token.UserId, "attempt")
-		_, initErr := bot.initializeUserChannels(token.ReapId, "")
+		_, initErr := bot.initializeUserChannels(token.RespId, "")
 		if initErr != nil {
 			metrics.ObserveReconnect(token.UserId, "error")
 			logger.Error("ошибка повторной инициализации каналов: %v", initErr, token.UserId)
@@ -598,9 +598,9 @@ func (u *User) handleEvents(c *gin.Context) {
 		}
 		metrics.ObserveReconnect(token.UserId, "success")
 
-		usrCh, err = u.mod.GetCh(token.ReapId)
+		usrCh, err = u.mod.GetCh(token.RespId)
 		if err != nil {
-			logger.Error("канал не найден после повторной инициализации: %v", err, token.ReapId)
+			logger.Error("канал не найден после повторной инициализации: %v", err, token.RespId)
 			bot.decrementConnection()
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "channel not found"})
 			return
@@ -720,7 +720,7 @@ func (u *User) handleEvents(c *gin.Context) {
 
 		case <-bot.shutdownCh:
 			// Graceful shutdown: уведомляем клиента о завершении
-			logger.Debug("User shutdown signal received for resp %d", token.ReapId)
+			logger.Debug("User shutdown signal received for resp %d", token.RespId)
 			if _, err := fmt.Fprintf(c.Writer, "event: shutdown\ndata: {\"type\":\"shutdown\",\"message\":\"User is shutting down\"}\n\n"); err == nil {
 				if flusher, ok := c.Writer.(http.Flusher); ok {
 					flusher.Flush()
@@ -731,7 +731,7 @@ func (u *User) handleEvents(c *gin.Context) {
 		case <-pingTicker.C:
 			// Отправляем ping для проверки соединения
 			if _, err := fmt.Fprintf(c.Writer, ": ping\n\n"); err != nil {
-				logger.Error("Соединение разорвано (ping failed) для слушателя %d", token.ReapId)
+				logger.Error("Соединение разорвано (ping failed) для слушателя %d", token.RespId)
 				return
 			}
 			if flusher, ok := c.Writer.(http.Flusher); ok {
@@ -740,7 +740,7 @@ func (u *User) handleEvents(c *gin.Context) {
 
 		case <-timeoutTicker.C:
 			// Принудительное закрытие соединения по timeout
-			logger.Error("Long-polling timeout (%v) для слушателя %d", LongPollingTimeout, token.ReapId)
+			logger.Error("Long-polling timeout (%v) для слушателя %d", LongPollingTimeout, token.RespId)
 			if _, err := fmt.Fprintf(c.Writer, "event: timeout\ndata: {\"type\":\"timeout\",\"message\":\"Connection timeout\"}\n\n"); err == nil {
 				if flusher, ok := c.Writer.(http.Flusher); ok {
 					flusher.Flush()
@@ -749,7 +749,7 @@ func (u *User) handleEvents(c *gin.Context) {
 			return
 
 		case <-c.Request.Context().Done():
-			logger.Debug("Клиент разорвал соединение %d", token.ReapId)
+			logger.Debug("Клиент разорвал соединение %d", token.RespId)
 			return
 		}
 	}
@@ -761,7 +761,7 @@ func (u *User) enableBot(c *gin.Context) {
 	if !ok {
 		return
 	}
-	userID := uid.(uint32)
+	userID := uid.(uint64)
 
 	err := u.StartBot(userID)
 	if err != nil {
@@ -780,7 +780,7 @@ func (u *User) restartBot(c *gin.Context) {
 	if !ok {
 		return
 	}
-	userID := uid.(uint32)
+	userID := uid.(uint64)
 
 	err := u.RestartBot(userID)
 	if err != nil {
@@ -799,7 +799,7 @@ func (u *User) disableBot(c *gin.Context) {
 	if !ok {
 		return
 	}
-	userID := uid.(uint32)
+	userID := uid.(uint64)
 
 	err := u.StopBot(userID)
 	if err != nil {

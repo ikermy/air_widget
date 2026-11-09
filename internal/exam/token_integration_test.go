@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	rpcclient "github.com/ikermy/air-common/pkg/rpc"
+	rpcclient "github.com/ikermy/air-common/v2/pkg/rpc"
 )
 
 func TestIntegration_WidgetTokenRPC(t *testing.T) {
@@ -46,7 +46,7 @@ func TestIntegration_WidgetTokenRPC(t *testing.T) {
 	}()
 
 	exam := &Exam{ctx: context.Background(), rpc: client}
-	const userID uint32 = 42
+	const userID uint64 = 42
 	const respID uint64 = 777
 	const ttl = time.Duration(domain.AuthTokenTTL) * time.Minute
 

@@ -9,11 +9,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 
-	"github.com/ikermy/air-common/pkg/comdb"
-	"github.com/ikermy/air-common/pkg/comdom"
-	"github.com/ikermy/air-common/pkg/mode"
-	"github.com/ikermy/air-common/pkg/model/create"
+	"github.com/ikermy/air-common/v2/pkg/comdb"
+	"github.com/ikermy/air-common/v2/pkg/comdom"
+	"github.com/ikermy/air-common/v2/pkg/mode"
+	"github.com/ikermy/air-common/v2/pkg/model/create"
 	"github.com/ikermy/air-logger/v2/pkg/logger"
 )
 
@@ -172,7 +173,7 @@ func (i *Implementation) GetWidgetBotUsers() ([]domain.WidgetBotData, error) {
 }
 
 // GetWidgetBotUser получает информацию о конкретном боте пользователя по userID
-func (i *Implementation) GetWidgetBotUser(userID uint32) (domain.WidgetBotData, error) {
+func (i *Implementation) GetWidgetBotUser(userID uint64) (domain.WidgetBotData, error) {
 	// Дочерний контекст с тайм-аутом на операцию
 	ctx, cancel := context.WithTimeout(i.db.Context(), mode.GetSQLTimeToCancel())
 	defer cancel()
@@ -274,35 +275,48 @@ func fillWidgetBotData(user *domain.WidgetBotData, widget, name, assistantID sql
 	}
 }
 
-func (i *Implementation) ReadResponderName(respId uint64) (json.RawMessage, error) {
+func (i *Implementation) ReadResponderName(userID uint64, respId uint64) (json.RawMessage, error) {
 	// TODO добавить это в редиску
 	// Ищем имя пользователя и realRespId в кэше
 	//if value, found := d.userName.Load(respId); found {
 	//	return value.(json.RawMessage), nil
 	//}
 
-	// Читаем имя пользователя из базы данных
-	//db, err := sql.Open("mysql", d.dsn)
-	//if err != nil {
-	//	return nil, fmt.Errorf("ошибка открытия базы данных: %w", err)
-	//}
-	//defer db.Close()
+	if userID == 0 || respId == 0 {
+		return nil, fmt.Errorf("получены некорректные userID или respId")
+	}
+	if respId > math.MaxInt64 {
+		return nil, fmt.Errorf("respId %d превышает BIGINT", respId)
+	}
 
 	ctx, cancel := context.WithTimeout(i.db.Context(), mode.GetSQLTimeToCancel())
 	defer cancel()
 
-	var respData sql.NullString
-	err := i.db.Conn().QueryRowContext(ctx, "SELECT ReadResponderName(?)", respId).Scan(&respData)
+	var (
+		name        sql.NullString
+		responderID uint64
+	)
+	err := i.db.Conn().QueryRowContext(ctx, `
+		SELECT Name, Id FROM responders
+		WHERE user_id = ? AND RealId = ?
+		ORDER BY Id LIMIT 1`, userID, int64(respId)).Scan(&name, &responderID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
 	if err != nil {
-		return nil, fmt.Errorf("ошибка вызова хранимой функции ReadDemoUserName: %w", err)
+		return nil, fmt.Errorf("ошибка чтения responder: %w", err)
 	}
 
-	if !respData.Valid {
-		return nil, nil
+	data, err := json.Marshal(struct {
+		Name   string `json:"Name"`
+		RespId uint64 `json:"RespId"`
+	}{Name: name.String, RespId: responderID})
+	if err != nil {
+		return nil, fmt.Errorf("ошибка сериализации responder: %w", err)
 	}
 
 	// Сохраняем имя пользователя в кэш
 	//d.userName.Store(respId, json.RawMessage(respData.String))
 
-	return json.RawMessage(respData.String), nil
+	return data, nil
 }

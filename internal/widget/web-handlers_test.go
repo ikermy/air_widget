@@ -13,7 +13,7 @@ import (
 )
 
 type widgetCodeExamMock struct {
-	userID         uint32
+	userID uint64
 	examKey        string
 	expiresAt      int64
 	neverExpires   bool
@@ -22,7 +22,7 @@ type widgetCodeExamMock struct {
 	calls          int
 }
 
-func (m *widgetCodeExamMock) WidgetNewCode(userID uint32, examKey string, expiresAt int64, neverExpires bool, allowedOrigins []string, jti string) (string, error) {
+func (m *widgetCodeExamMock) WidgetNewCode(userID uint64, examKey string, expiresAt int64, neverExpires bool, allowedOrigins []string, jti string) (string, error) {
 	m.userID = userID
 	m.examKey = examKey
 	m.expiresAt = expiresAt
@@ -39,7 +39,7 @@ func (m *widgetCodeExamMock) ParseToken(string) (*exam.Token, error)            
 func (m *widgetCodeExamMock) UpdateToken(*exam.Token) (string, error)              { return "", nil }
 func (m *widgetCodeExamMock) ParseExpiredToken(string) (*exam.Token, error)        { return nil, nil }
 func (m *widgetCodeExamMock) VerifyToken() (bool, error)                           { return true, nil }
-func (m *widgetCodeExamMock) CheckUserSubscription(uint32) error                   { return nil }
+func (m *widgetCodeExamMock) CheckUserSubscription(uint64) error                   { return nil }
 
 func TestHandleWidgetCodeGeneratesServerSideExamKey(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -48,7 +48,7 @@ func TestHandleWidgetCodeGeneratesServerSideExamKey(t *testing.T) {
 	u := &User{web: &Web{exam: mock}}
 	router := gin.New()
 	router.POST("/v1/widget/code", func(c *gin.Context) {
-		c.Set("uid", uint32(23))
+		c.Set("uid", uint64(23))
 		u.handleWidgetCode(c)
 	})
 

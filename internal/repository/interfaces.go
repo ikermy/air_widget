@@ -4,14 +4,14 @@ import (
 	"air_widget/internal/domain"
 	"encoding/json"
 
-	"github.com/ikermy/air-common/pkg/comdb"
+	"github.com/ikermy/air-common/v2/pkg/comdb"
 )
 
 // InternalRepository внутренние методы работы с БД
 type InternalRepository interface {
-	GetWidgetBotUser(userID uint32) (domain.WidgetBotData, error)
+	GetWidgetBotUser(userID uint64) (domain.WidgetBotData, error)
 	GetWidgetBotUsers() ([]domain.WidgetBotData, error)
-	ReadResponderName(respId uint64) (json.RawMessage, error)
+	ReadResponderName(userID uint64, respId uint64) (json.RawMessage, error)
 }
 
 // ExternalDBRepository интерфейс для внешних методов БД (из air-common)

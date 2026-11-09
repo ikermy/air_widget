@@ -45,7 +45,7 @@ func uidMiddleware() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		c.Set("uid", uint32(uid))
+		c.Set("uid", uint64(uid))
 		c.Next()
 	}
 }

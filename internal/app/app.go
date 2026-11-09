@@ -8,16 +8,16 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ikermy/air-common/pkg/com"
-	"github.com/ikermy/air-common/pkg/crm"
-	"github.com/ikermy/air-common/pkg/endpoint"
-	"github.com/ikermy/air-common/pkg/model"
-	"github.com/ikermy/air-common/pkg/model/google"
-	"github.com/ikermy/air-common/pkg/model/mistral"
-	"github.com/ikermy/air-common/pkg/model/openai"
-	"github.com/ikermy/air-common/pkg/operator"
-	"github.com/ikermy/air-common/pkg/rpc"
-	"github.com/ikermy/air-common/pkg/startpoint"
+	"github.com/ikermy/air-common/v2/pkg/com"
+	"github.com/ikermy/air-common/v2/pkg/crm"
+	"github.com/ikermy/air-common/v2/pkg/endpoint"
+	"github.com/ikermy/air-common/v2/pkg/model"
+	"github.com/ikermy/air-common/v2/pkg/model/google"
+	"github.com/ikermy/air-common/v2/pkg/model/mistral"
+	"github.com/ikermy/air-common/v2/pkg/model/openai"
+	"github.com/ikermy/air-common/v2/pkg/operator"
+	"github.com/ikermy/air-common/v2/pkg/rpc"
+	"github.com/ikermy/air-common/v2/pkg/startpoint"
 	"github.com/ikermy/air-logger/v2/pkg/logger"
 	"github.com/redis/go-redis/v9"
 )
@@ -87,7 +87,7 @@ func New(parent context.Context, redisCfg domain.Redis) *App {
 
 	// Инжектируем resolver в comdb.DB
 	//    Каждый раз когда DB-методу нужен MasterKey — он делает gRPC-запрос к Landing
-	d.SetMasterKeyResolver(func(userId uint32) ([32]byte, bool) {
+	d.SetMasterKeyResolver(func(userId uint64) ([32]byte, bool) {
 		mk, err := rpcClient.GetUserMasterKey(context.Background(), userId)
 		if err != nil {
 			// codes.Unavailable — пользователь не логинился после рестарта Landing

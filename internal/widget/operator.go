@@ -4,7 +4,7 @@ import (
 	"air_widget/internal/metrics"
 	"fmt"
 
-	"github.com/ikermy/air-common/pkg/model"
+	"github.com/ikermy/air-common/v2/pkg/model"
 	"github.com/ikermy/air-logger/v2/pkg/logger"
 )
 
@@ -33,7 +33,7 @@ func (u *User) operatorModeDialogsCount() int {
 }
 
 // DisableOperatorMode отключает режим оператора и уведомляет AI-модель
-func (u *User) DisableOperatorMode(userId uint32, dialogId uint64, silent ...bool) error {
+func (u *User) DisableOperatorMode(userId uint64, dialogId uint64, silent ...bool) error {
 	// Определяем значение silent (по умолчанию false)
 	isSilent := false
 	if len(silent) > 0 {

@@ -9,22 +9,22 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ikermy/air-common/pkg/com"
-	"github.com/ikermy/air-common/pkg/rpc/proto"
+	"github.com/ikermy/air-common/v2/pkg/com"
+	"github.com/ikermy/air-common/v2/pkg/rpc/proto"
 )
 
 // AuthTokenTTL время жизни токена авторизации сессии виджета (с момента первого открытия кнопкой)
 const AuthTokenTTL = 60
 
 type Req struct {
-	UserId uint32
+	UserId uint64
 	Key    string
 	RespId uint64
 	Origin string
 }
 
 type WidgetCodeData struct {
-	UserID       uint32
+	UserID uint64
 	ExamKey      string
 	ExpiresAt    int64
 	NeverExpires bool
@@ -43,18 +43,18 @@ type Exam struct {
 }
 
 type Token struct {
-	UserId uint32
-	ReapId uint64
+	UserId uint64
+	RespId uint64
 	Origin string
 	JTI    string
 }
 
 // ORCClient интерфейс для получения MasterKey пользователя через Landing gRPC
 type ORCClient interface {
-	WidgetNewToken(ctx context.Context, userID uint32, respID uint64, expired time.Duration, origin string, jti string) (string, error)
-	WidgetParseToken(ctx context.Context, tokenString string) (uint32, uint64, string, string, error)
+	WidgetNewToken(ctx context.Context, userID uint64, respID uint64, expired time.Duration, origin string, jti string) (string, error)
+	WidgetParseToken(ctx context.Context, tokenString string) (uint64, uint64, string, string, error)
 	WidgetParseExpiredToken(ctx context.Context, tokenString string) (*proto.WidgetTokenData, error)
-	WidgetNewCode(ctx context.Context, userId uint32, examKey string, expiresAt int64, neverExpires bool, allowedUrls []string, jti string) (string, error)
+	WidgetNewCode(ctx context.Context, userId uint64, examKey string, expiresAt int64, neverExpires bool, allowedUrls []string, jti string) (string, error)
 	WidgetParseCode(ctx context.Context, token string) (*proto.WidgetCodeData, error)
 }
 
@@ -68,7 +68,7 @@ func New(parent context.Context, d *db.DB, b ORCClient) (*Exam, error) {
 	}, nil
 }
 
-func (e *Exam) GenerateToken(userID uint32, responderId uint64, origin, jti string) (string, error) {
+func (e *Exam) GenerateToken(userID uint64, responderId uint64, origin, jti string) (string, error) {
 	signedToken, err := e.helperNewToken(userID, responderId, AuthTokenTTL*time.Minute, origin, jti)
 	if err != nil {
 		return "", fmt.Errorf("ошибка подписи токена: %v", err)
@@ -85,7 +85,7 @@ func (e *Exam) ParseExpiredToken(tokenString string) (*Token, error) {
 
 	return &Token{
 		UserId: data.UserId,
-		ReapId: data.RespId,
+		RespId: data.RespId,
 		Origin: data.Origin,
 		JTI:    data.Jti,
 	}, nil
@@ -93,7 +93,7 @@ func (e *Exam) ParseExpiredToken(tokenString string) (*Token, error) {
 
 func (e *Exam) UpdateToken(t *Token) (string, error) {
 	// Получаем токен с подписью от orc
-	signedToken, err := e.helperNewToken(t.UserId, t.ReapId, AuthTokenTTL*time.Minute, t.Origin, t.JTI)
+	signedToken, err := e.helperNewToken(t.UserId, t.RespId, AuthTokenTTL*time.Minute, t.Origin, t.JTI)
 	if err != nil {
 		return "", err
 	}
@@ -109,7 +109,7 @@ func (e *Exam) ParseToken(tokenString string) (*Token, error) {
 
 	return &Token{
 		UserId: userID,
-		ReapId: respID,
+		RespId: respID,
 		Origin: origin,
 		JTI:    jti,
 	}, nil
@@ -138,11 +138,11 @@ func (e *Exam) ExamUser(examData Req) (string, error) {
 }
 
 // CheckUserSubscription проверяет подписку пользователя
-func (e *Exam) CheckUserSubscription(userId uint32) error {
+func (e *Exam) CheckUserSubscription(userId uint64) error {
 	return com.CheckUserSubscription(e.db, userId)
 }
 
-func (e *Exam) WidgetNewCode(userID uint32, examKey string, expiresAt int64, neverExpires bool, allowedUrls []string, jti string) (string, error) {
+func (e *Exam) WidgetNewCode(userID uint64, examKey string, expiresAt int64, neverExpires bool, allowedUrls []string, jti string) (string, error) {
 	return e.rpc.WidgetNewCode(e.ctx, userID, examKey, expiresAt, neverExpires, allowedUrls, jti)
 }
 
@@ -157,7 +157,7 @@ func (e *Exam) WidgetParseCode(tokenString string) (*WidgetCodeData, error) {
 	}, nil
 }
 
-func (e *Exam) helperNewToken(userID uint32, respID uint64, expired time.Duration, origin, jti string) (string, error) {
+func (e *Exam) helperNewToken(userID uint64, respID uint64, expired time.Duration, origin, jti string) (string, error) {
 	token, err := e.rpc.WidgetNewToken(e.ctx, userID, respID, expired, origin, jti)
 	if err != nil {
 		return "", fmt.Errorf("ошибка создания токена: %v", err)
@@ -166,7 +166,7 @@ func (e *Exam) helperNewToken(userID uint32, respID uint64, expired time.Duratio
 	return token, nil
 }
 
-func (e *Exam) helperParseToken(tokenString string) (uint32, uint64, string, string, error) {
+func (e *Exam) helperParseToken(tokenString string) (uint64, uint64, string, string, error) {
 	userID, respID, origin, jti, err := e.rpc.WidgetParseToken(e.ctx, tokenString)
 	if err != nil {
 		return 0, 0, "", "", err

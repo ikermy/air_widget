@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"sync"
 
-	"github.com/ikermy/air-common/pkg/comdb"
+	"github.com/ikermy/air-common/v2/pkg/comdb"
 	"github.com/ikermy/air-logger/v2/pkg/logger"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -24,7 +24,7 @@ type DB struct {
 	Exit   chan struct{} // Канал завершения работы приложения
 }
 
-func (d *DB) GetWidgetBotUser(userID uint32) (domain.WidgetBotData, error) {
+func (d *DB) GetWidgetBotUser(userID uint64) (domain.WidgetBotData, error) {
 	return d.repo.Internal.GetWidgetBotUser(userID)
 }
 
@@ -32,8 +32,8 @@ func (d *DB) GetWidgetBotUsers() ([]domain.WidgetBotData, error) {
 	return d.repo.Internal.GetWidgetBotUsers()
 }
 
-func (d *DB) ReadResponderName(respId uint64) (json.RawMessage, error) {
-	return d.repo.Internal.ReadResponderName(respId)
+func (d *DB) ReadResponderName(userID uint64, respId uint64) (json.RawMessage, error) {
+	return d.repo.Internal.ReadResponderName(userID, respId)
 }
 
 // New создаёт подключение к БД и инициализирует репозитории
