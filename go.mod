@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/gin-gonic/gin v1.12.0
 	github.com/go-sql-driver/mysql v1.10.1
-	github.com/ikermy/air-logger/v2 v2.1.4
+	github.com/ikermy/air-logger/v2 v2.1.5
 	github.com/prometheus/client_golang v1.24.1
 	github.com/redis/go-redis/v9 v9.22.0
 )

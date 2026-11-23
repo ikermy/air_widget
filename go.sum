@@ -57,6 +57,8 @@ github.com/ikermy/air-common/v2 v2.0.4 h1:ZoOhH1WoQjh2xUDVH8UNNMYrAW+4GSEW6F68sh
 github.com/ikermy/air-common/v2 v2.0.4/go.mod h1:xRsyQjbUfgxWX1QvMq8HXSo5vk1uuNLoj6/Mmx0nvxo=
 github.com/ikermy/air-logger/v2 v2.1.4 h1:taxE4/8JjmFsP8HW73zHLEIy+JD9HadSelq89x0m0S4=
 github.com/ikermy/air-logger/v2 v2.1.4/go.mod h1:pdGKQevFnHCaNuzPl5K3IkNX7P6/s5YEjq56p+xOZ/Y=
+github.com/ikermy/air-logger/v2 v2.1.5 h1:KNz7SfR3xKGIxy3jzu+43SLOmGj5nsJP2K4osGK/emY=
+github.com/ikermy/air-logger/v2 v2.1.5/go.mod h1:n1nmxORKJCRbUUJA+0X0G39aMo6wdsRXNv9+6dkLXjc=
 github.com/json-iterator/go v1.1.12 h1:PV8peI4a0ysnczrg+LtxykD8LfKY9ML6u2jnxaEnrnM=
 github.com/json-iterator/go v1.1.12/go.mod h1:e30LSqwooZae/UwlEbR2852Gd8hjQvJoHmT4TnhNGBo=
 github.com/klauspost/compress v1.19.1 h1:VsB4HPswih7mmZ8WleSFQ75c/Ui1M4trX5oAsJnhSlk=
